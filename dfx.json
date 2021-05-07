@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "dfx": "0.7.0-beta.6",
+  "canisters": {
+    "random_maze": {
+      "type": "motoko",
+      "main": "src/random_maze/main.mo"
+    },
+    "random_maze_assets": {
+      "type": "assets",
+      "source": [
+        "src/random_maze_assets/assets"
+      ],
+      "dependencies": [
+        "random_maze"
+      ]
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8000",
+      "type": "ephemeral"
+    }
+  }
+}
