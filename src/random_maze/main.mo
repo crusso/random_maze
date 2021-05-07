@@ -1,46 +1,42 @@
 import Random "mo:base/Random";
 import Array "mo:base/Array";
+import List "mo:base/List";
+import Stack "mo:base/Stack";
 
 actor {
 
     type Maze = [[var Bool]];
     type Visited = [[var Bool]];
 
-    func neighbours(i : Nat, j : Nat, maze: Maze) : [(Nat, Nat)] {
-        let m = maze.size() - 1;
-        if (i == 0) {
-            if (j == 0) 
-              [(0, 1), (1, 0)]
-            else if (j == m) 
-              [(0, m - 1), (1,  m)]
-            else 
-              [(0, m - 1), (0, m + 1), (1, m)]
-        }
-        else if (i == m) {
-          if (j == 0) 
-               [(m - 1, 0), (m, 1)]
-            else if (j == m)
-               [(m - 1, m), (m, m - 1)]
-            else 
-               [(m - 1, j), (m, j - 1), (m, j + 1)]
-        }
-        else [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1) ]
+    func neighbours(i : Int, j : Int) : [(Int, Int)] {
+      [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1) ];
+    };
+
+    func unvisited(i : Nat, j : Nat, m : Maze, v : Visited) : List.List<(Nat,Nat)> {
+      let max = m.size() - 1;
+      var cs = List.nil<(Nat,Nat)>();
+      if (i > 0 and not v[i - 1][j]) cs := List.push((i - 1 , j), cs);
+      if (i < max and not v[i + 1][j]) cs := List.push((i + 1, j), cs);
+      if (j > 0 and not v[i][j - 1]) cs := List.push((i, j - 1), cs);
+      if (j < max and not v[i][j + 1]) cs := List.push((i, j + 1), cs);
+      cs;
     };
 
     private func dfs(i : Nat, j: Nat, m : Maze, v : Visited, f : Random.Finite) : async () {
         v[i][j] := true;
-        for ((i1, j1) in neighbours(i, j, m).vals()) {
-            if (v[i1][j1]) {}
-            else switch (f.coin()) { 
-                case (? true) {
-                    m[i][j] := true; 
-                    return await dfs(i1, j1, m, v, f);
-                };
-                case (? false) {};
-                case null  {
-                    return await dfs(i, j, m , v, Random.Finite(await Random.blob()))
-                }
+        loop {
+          let us = unvisited(i, j, m, v);
+          if (List.isNil(us)) return;
+          switch (f.range(4)) { 
+            case (? k) {
+              let ? u = List.get(us, k % List.size(us));
+              m[i][j] := true; 
+              return await dfs(u.0, u.1, m, v, f);
             };
+            case null  {
+              return await dfs(i, j, m, v, Random.Finite(await Random.blob()))
+            };
+          };
         };
     };
 
