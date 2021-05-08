@@ -49,7 +49,7 @@ actor {
       var t = "";
       for (row in maze.vals()) {
         for (col in row.vals()) {
-          t #= if (col) "█" else " ";
+          t #= if (col) "🟥" else "⬜";
         };
 	    t #= "\n";  
       };
@@ -62,11 +62,8 @@ actor {
       for (i in m.keys()) {
           for (j in m[i].keys()) {
               m[i][j] := 
-                i == 0 or
-                i == 2 * n or 
-                j == 0 or
-                j == 2 * n or
-                (i * (2 * n + 1) + j) % 2 == 1
+                i % 2 == 0 or 
+                j % 2 == 0
           }
       };
       let v = Array.tabulate<[var Bool]>(2 * n + 1, func i { Array.init(2 * n + 1, false) });
