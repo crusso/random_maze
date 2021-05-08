@@ -2,6 +2,7 @@ import Random "mo:base/Random";
 import Array "mo:base/Array";
 import List "mo:base/List";
 import Stack "mo:base/Stack";
+import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
 import Nat "mo:base/Nat";
 import Debug "mo:base/Debug";
@@ -33,7 +34,7 @@ actor {
     };
 
     private func dfs(i : Nat, j: Nat, m : Maze, f : Random.Finite) : /* async */ () {
-        m[i][j] := visit(0);
+        m[i][j] := visit(hall);
         Debug.print(toText(m));
         loop {
           let us = unvisited(i, j, m);
@@ -42,7 +43,7 @@ actor {
             case (? k) {
                 let ? u = List.get(us, k % List.size(us));
                 m[if (i == u.0) i else (Nat.min(i, u.0) + 1)]
-                    [if (j == u.1) j else (Nat.min(j, u.1)+1)] := hall;
+                    [if (j == u.1) j else (Nat.min(j, u.1) + 1)] := hall;
               /* await */ dfs(u.0, u.1, m, f);
             };
             case null {
@@ -50,6 +51,37 @@ actor {
             };
           };
         };
+    };
+
+    private func iterative(i : Nat, j: Nat, m : Maze) : /* async  */() {
+        let s = Stack.Stack<(Nat,Nat)>();
+        var f = Random.Finite(rand /* await Random.blob() */);
+        m[i][j] := visit(hall); 
+        s.push((i, j));
+        loop {
+            switch (s.pop()) {
+                case null return;
+                case (?(i, j)) {      
+                    let us = unvisited(i, j, m);
+                    if (not List.isNil(us)) { 
+                        switch (f.range(2)) {
+                            case (? k) {
+                                s.push((i, j));
+                                let ? u = List.get(us, k % List.size(us));
+                                m[if (i == u.0) i else (Nat.min(i, u.0) + 1)]
+                                    [if (j == u.1) j else (Nat.min(j, u.1) + 1)] := hall;
+                                m[u.0][u.1] := visit(hall);
+                                s.push(u); 
+                            };
+                            case null {
+                                s.push((i,j));
+                                f := Random.Finite(rand /*await Random.blob()*/);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     };
 
     func toText(maze : Maze) : Text {
@@ -68,6 +100,14 @@ actor {
         let m = Array.tabulate<[var Nat8]>(2 * n + 1,
             func i { Array.init(2 * n + 1, wall) });
         dfs(1, 1, m, Random.Finite(rand/* await Random.blob()*/));
+        toText(m);
+    };
+
+    public query func gen() : async Text {
+        let n = 16;
+        let m = Array.tabulate<[var Nat8]>(2 * n + 1,
+            func i { Array.init(2 * n + 1, wall) });
+        /* await */ iterative(1, 1, m);
         toText(m);
     };
 };
