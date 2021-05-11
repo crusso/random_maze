@@ -7,6 +7,14 @@ import Blob "mo:base/Blob";
 import Nat "mo:base/Nat";
 import Debug "mo:base/Debug";
 
+/// Generate a random maze using cryptographic randomness.
+///
+/// Illustrates library `Random.mo` for cryptographic randomness. In particlar:
+///
+/// * asynchronous requests for initial and additional entropy using
+///   shared function `Random.blob()`; and
+/// * generating bounded, discrete random numbers using class `Random.Finite()`.
+
 actor {
 
   type Maze = [[var Nat8]];
@@ -26,7 +34,11 @@ actor {
     if (b) 1 else 0;
   };
 
-  func chooseMax(f: Random.Finite, max : Nat) : ? Nat {
+  /// Given finite source of randomness `f`,
+  /// return an optional random number between [0..`max`)
+  /// (using rejection sampling).
+  /// Return of `null` indicates `f` is exhausted and should be replaced.
+  func chooseMax(f : Random.Finite, max : Nat) : ? Nat {
     assert max > 0;
     do ? {
       if (max == 1) return ? 0;
@@ -56,38 +68,6 @@ actor {
     cs;
   };
 
-  private func dfs(i : Nat, j: Nat, m : Maze) : async  () {
-    let s = Stack.Stack<(Nat,Nat)>();
-    var f = Random.Finite(await Random.blob());
-    m[i][j] := visit(hall);
-    s.push((i, j));
-    loop {
-      switch (s.pop()) {
-        case null return;
-        case (?(i, j)) {
-          let us = unvisited(i, j, m);
-          if (not List.isNil(us)) {
-            switch (chooseMax(f, List.size(us))) {
-              case (? k) {
-                s.push((i, j));
-                let ? u = List.get(us, k);
-                m[if (i == u.0) i else (Nat.min(i, u.0) + 1)]
-                  [if (j == u.1) j else (Nat.min(j, u.1) + 1)] := hall;
-                m[u.0][u.1] := visit(hall);
-                s.push(u);
-              };
-              case null {
-                Debug.print("need more entropy...");
-                s.push((i,j));
-                f := Random.Finite(await Random.blob());
-              }
-            }
-          }
-        }
-      }
-    }
-  };
-
   func toText(maze : Maze) : Text {
     var t = "";
     for (row in maze.vals()) {
@@ -99,11 +79,55 @@ actor {
     t
   };
 
-  public func get(n : Nat) : async Text {
+  /// Given n, returns a maze of n * n cells,
+  /// separated by n + 1 partial walls.
+  ///
+  /// https://en.wikipedia.org/wiki/Maze_generation_algorithm
+  /// https://en.wikipedia.org/wiki/Maze_generation_algorithm#Iterative_implementation
+  public func generate(n : Nat) : async Text {
+
+    // Construct a maze of mutable, unvisited walls
     let m = Array.tabulate<[var Nat8]>(2 * n + 1,
       func i { Array.init(2 * n + 1, wall) });
-    await dfs(1, 1, m);
-    toText(m);
+
+    // Use iterative depth-first search on odd numbered entries
+    // to turn walls into cells connected by random halls
+    let s = Stack.Stack<(Nat,Nat)>();
+    let entropy = await Random.blob(); // get initial entropy
+    var f = Random.Finite(entropy);
+
+    m[0][1] := hall; // Entrance
+    m[2*n][2*n-1] := hall; // Exit
+
+    m[1][1] := visit(hall);
+    s.push((1, 1));
+    loop {
+      switch (s.pop()) {
+        case null return toText(m);
+        case (?(i, j)) {
+          let us = unvisited(i, j, m);
+          if (not List.isNil(us)) {
+            switch (chooseMax(f, List.size(us))) {
+              case (? k) {
+                s.push((i, j));
+                let ? (i1, j1) = List.get(us, k);
+		// connect cell (i, j) and (i1, j1)
+                m[if (i == i1) i else (Nat.min(i, i1) + 1)]
+                  [if (j == j1) j else (Nat.min(j, j1) + 1)] := hall;
+                m[i1][j1] := visit(hall);
+                s.push((i1, j1));
+              };
+              case null { // not enough entropy
+                Debug.print("need more entropy...");
+		let entropy = await Random.blob(); // get more entropy
+                f := Random.Finite(entropy);
+                s.push((i,j)); // continue from (i,j)
+              }
+            }
+          }
+        }
+      }
+    }
   };
 
 };
